@@ -1,0 +1,161 @@
+import java_cup.runtime.*;
+
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    Parser(Scanner s){ this.s=s; }
+    void print_start(){
+    	System.out.println("public class Main {\n\tpublic static void main(String[] args) {\n\t");
+    }
+    void print_sys(){
+    	System.out.println("System.out.println(");
+    }
+    void print_fun(){
+    	System.out.println("public static String ");
+    }
+    String add_semi(String el3){
+    	String str="\t\tSystem.out.println(";
+    	for(int i=0;i<el3.length()-1;i++){
+    		if(el3.charAt(i)==')'){
+   				if( el3.charAt(i+1) != ',' && el3.charAt(i+1) != ')'  ){
+   					str+="));\n\t\tSystem.out.println(";
+   					continue;
+   				}
+    		}
+    		str+=el3.charAt(i);
+    	}
+    	str+="));";
+    	return str;
+
+    }
+
+:}
+
+/* define how to connect to the scanner! */
+scan with {: return s.next_token(); :};
+
+
+/* Terminals (tokens returned by the scanner). */
+terminal            PLUS, LPAREN, RPAREN, LCURLY, RCURLY, PREFIX, REVERSE, IF, ELSE, COMMA, IDENTIFIER;
+terminal String     STRING_LITERAL;        // our scanner provides numbers as strings
+
+/*  Non terminals */
+non terminal            program, methods, expr_list;
+non terminal 		    expr, idnt, str;      // used to store evaluated subexpressions
+
+/**
+ *  Precedence Declarations
+ */
+precedence left PLUS,COMMA,PREFIX,REVERSE;
+precedence left LCURLY,LPAREN;
+precedence left IDENTIFIER,STRING_LITERAL,IF;
+
+start with program;
+
+/**
+ *  The Grammar Rules
+ */
+
+program   ::= methods:m 														{: System.out.println(m.toString());
+																					 System.out.println("}"); :}
+;
+
+methods	  ::= expr:e LPAREN expr_list:el1 RPAREN LCURLY expr_list:el2 RCURLY expr_list:el3	
+				{: 	if(el1!= "")
+						if(el1.toString().charAt(0)!='S'){
+							String str="String ";
+							str+=el1.toString();
+							el1=str;
+						}
+					if(el3.toString().indexOf('{') == -1){
+						print_start();
+						el3 = el3.toString().replace("\t\treturn ","");
+						el3 = el3.toString().replace("String","");
+						el3 = add_semi(el3.toString());
+						System.out.println(el3.toString());
+						System.out.println("\n\t}");
+						if(el2.toString().charAt(el2.toString().length()-1)==';')
+							RESULT = "\tpublic static String " + e.toString() + "(" + el1.toString() + ") {\n" + el2.toString() + "\n\t}\n";
+						else
+							RESULT = "\tpublic static String " + e.toString() + "(" + el1.toString() + ") {\n" + el2.toString() + ";\n\t}\n";
+					}
+					else
+						if(el2.toString().charAt(el2.toString().length()-1)==';')
+							RESULT = "\tpublic static String " + e.toString() + "(" + el1.toString() + ") {\n" + el2.toString() + "\n\t}\n" + el3.toString();
+						else
+							RESULT = "\tpublic static String " + e.toString() + "(" + el1.toString() + ") {\n" + el2.toString() + ";\n\t}\n" + el3.toString();
+				:}
+;
+expr_list ::= expr_list:el expr:e         										{: RESULT = el.toString() + e.toString();   :}
+            |                    												{: RESULT = "";         :}
+;
+expr      ::= expr:e1 PLUS  expr:e2        										
+							{: if(e1.toString().charAt(0)=='\t'){
+									RESULT = e1.toString() + " + " + e2.toString();
+								}
+								else
+									RESULT = "\t\treturn " + e1.toString() + " + " + e2.toString();
+							:}
+
+
+
+			| expr:e1 COMMA  expr:e2											
+							{:
+								if (e1.toString().charAt(0)=='S'){
+									RESULT = e1.toString() + ", " + "String " + e2.toString();
+
+								}
+								else
+									 RESULT = "String " + e1.toString() + ", " + "String " + e2.toString();
+							 :}
+
+
+
+							
+			| expr:e LPAREN expr_list:el1 RPAREN expr_list:el2					{: RESULT = e.toString() + "(" + el1.toString() + ")" + 		
+																					el2.toString(); :}
+			| IF LPAREN expr_list:el1 RPAREN expr_list:el2 ELSE expr_list:el3	{:  el1 = el1.toString().replace("\t\treturn","");
+
+																					if(el2.toString().charAt(0)!='\t'){
+																						String str = "\t\t\treturn ";
+																						str += el2.toString();
+																						el2 = str + ";"; 
+																						//el2 = el2.toString().replace("\t\tif","\t\treturn ");
+																					}
+
+																					if(el2.toString().charAt(el2.toString().length()-1)=='"' ){
+																						String str="";
+																						str+=el2.toString();
+																						str+=";";
+																						el2 = str;
+																					}
+
+																					//el2 = el2.toString().replace("if","\tif");
+																					el2 = el2.toString().replace("else","\telse");
+																					if(el3.toString().charAt(0)!='\t'){
+																						String str = "\t\t\treturn ";
+																						str += el3.toString();
+																						el3 = str + ";"; 
+																					}
+
+																					//el3 = el3.toString().replace("if","\tif");
+																					el3 = el3.toString().replace("else","\telse");
+
+																					RESULT = "\t\tif" + "(" + el1.toString() + ")\n\t" + 
+																					el2.toString() + "\n\t\telse\n\t" + el3.toString(); :}
+			| expr:e1 PREFIX expr:e2 											{: RESULT = e2.toString()+".startsWith(" + e1.toString() +
+																					 ")";
+																					//RESULT = e1.toString() + " prefix " + e2.toString(); :} 
+			| REVERSE expr:e 													{: RESULT="new StringBuilder("+ e.toString() 
+																								+").reverse().toString()";
+																					//RESULT = "reverse " + e.toString();:}
+			| methods:m 														{: RESULT = m.toString(); :}
+            | str:s	            		    									{: RESULT = s.toString();  :}
+            | idnt:i 															{: RESULT = i.toString();  :}
+            ;
+
+idnt 	  ::= IDENTIFIER:i 														{: RESULT = i.toString(); :}
+;
+
+str 	  ::= STRING_LITERAL:s 													{: RESULT = "\t\treturn " +'\"' + s.toString() + '\"'; :}
+;
