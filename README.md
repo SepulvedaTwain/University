@@ -1,2 +1,2 @@
-# My University Projects
+# University Projects
 Some of my uni projects
